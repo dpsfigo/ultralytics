@@ -362,9 +362,9 @@ class BaseMixTransform:
             >>> pre_transform = Compose([RandomFlip(), RandomPerspective()])
             >>> mix_transform = BaseMixTransform(dataset, pre_transform, p=0.5)
         """
-        self.dataset = dataset
-        self.pre_transform = pre_transform
-        self.p = p
+        self.dataset = dataset #数据集对象，包含图像和标签
+        self.pre_transform = pre_transform #预处理变换函数，(yolo选择为Mosaic)
+        self.p = p #应用MixUp/Mosaic变换的概率
 
     def __call__(self, labels):
         """
@@ -383,11 +383,11 @@ class BaseMixTransform:
             >>> transform = BaseMixTransform(dataset, pre_transform=None, p=0.5)
             >>> result = transform({"image": img, "bboxes": boxes, "cls": classes})
         """
-        if random.uniform(0, 1) > self.p:
+        if random.uniform(0, 1) > self.p: #如果随机数大于p，则不进行数据增强
             return labels
 
         # Get index of one or three other images
-        indexes = self.get_indexes()
+        indexes = self.get_indexes() #调用get_indexes()方法获取需要混合的其他图像索引
         if isinstance(indexes, int):
             indexes = [indexes]
 
@@ -395,7 +395,7 @@ class BaseMixTransform:
         mix_labels = [self.dataset.get_image_and_label(i) for i in indexes]
 
         if self.pre_transform is not None:
-            for i, data in enumerate(mix_labels):
+            for i, data in enumerate(mix_labels): #对每个混合标签进行预处理
                 mix_labels[i] = self.pre_transform(data)
         labels["mix_labels"] = mix_labels
 
@@ -403,7 +403,7 @@ class BaseMixTransform:
         labels = self._update_label_text(labels)
         # Mosaic or MixUp
         labels = self._mix_transform(labels)
-        labels.pop("mix_labels", None)
+        labels.pop("mix_labels", None) #移除labels中的mix_labels键
         return labels
 
     def _mix_transform(self, labels):
@@ -474,9 +474,9 @@ class BaseMixTransform:
         if "texts" not in labels:
             return labels
 
-        mix_texts = sum([labels["texts"]] + [x["texts"] for x in labels["mix_labels"]], [])
-        mix_texts = list({tuple(x) for x in mix_texts})
-        text2id = {text: i for i, text in enumerate(mix_texts)}
+        mix_texts = sum([labels["texts"]] + [x["texts"] for x in labels["mix_labels"]], []) #合并原始标签文件和混合标签文件
+        mix_texts = list({tuple(x) for x in mix_texts}) #去重
+        text2id = {text: i for i, text in enumerate(mix_texts)} # 创建从文本到索引的映射字典text2id
 
         for label in [labels] + labels["mix_labels"]:
             for i, cls in enumerate(label["cls"].squeeze(-1).tolist()):
